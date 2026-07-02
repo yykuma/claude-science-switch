@@ -1,0 +1,30 @@
+{
+  "name": "claude-science-switch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local loopback proxy/switch for testing Claude Science with alternate model APIs.",
+  "bin": {
+    "claude-science-switch": "bin/claude-science-switch.js"
+  },
+  "scripts": {
+    "doctor": "node bin/claude-science-switch.js doctor --config examples/cliproxy-gpt55.json",
+    "serve": "node bin/claude-science-switch.js serve --config examples/cliproxy-gpt55.json",
+    "check": "node --check bin/claude-science-switch.js",
+    "test": "node --test test/*.test.js",
+    "build:native": "bun build --compile bin/claude-science-switch.js --outfile bin/native/claude-science-switch",
+    "package:linux-x64": "bash scripts/package-linux-x64.sh",
+    "verify:dmg": "bash scripts/verify-dmg.sh",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "files": [
+    "bin/claude-science-switch.js",
+    "examples",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

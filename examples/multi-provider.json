@@ -1,0 +1,110 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 17777,
+    "clientToken": "PROXY_MANAGED",
+    "timeoutMs": 120000,
+    "maxBodyBytes": 20971520
+  },
+  "activeProvider": "cliproxy-gpt55",
+  "providers": {
+    "cliproxy-gpt55": {
+      "apiFormat": "anthropic",
+      "baseUrl": "http://127.0.0.1:8317",
+      "authHeader": "authorization-bearer",
+      "apiKeyFromCliproxyConfig": "/opt/homebrew/etc/cliproxyapi.conf",
+      "models": {
+        "default": "gpt-5.5",
+        "haiku": "gpt-5.5",
+        "sonnet": "gpt-5.5",
+        "opus": "gpt-5.5",
+        "fable": "gpt-5.5",
+        "exact": {
+          "claude-haiku-4-5": "gpt-5.5",
+          "claude-haiku-4-5-20251001": "gpt-5.5",
+          "claude-sonnet-4-6": "gpt-5.5",
+          "claude-sonnet-4-6-20251101": "gpt-5.5",
+          "claude-opus-4-8": "gpt-5.5",
+          "claude-opus-4-8-20251201": "gpt-5.5",
+          "claude-fable-5": "gpt-5.5",
+          "claude-fable-5-20260609": "gpt-5.5"
+        }
+      }
+    },
+    "cliproxy-gpt55-openai-chat": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "http://127.0.0.1:8317",
+      "authHeader": "authorization-bearer",
+      "apiKeyFromCliproxyConfig": "/opt/homebrew/etc/cliproxyapi.conf",
+      "models": {
+        "default": "gpt-5.5",
+        "haiku": "gpt-5.5",
+        "sonnet": "gpt-5.5",
+        "opus": "gpt-5.5",
+        "fable": "gpt-5.5",
+        "exact": {
+          "claude-haiku-4-5": "gpt-5.5",
+          "claude-haiku-4-5-20251001": "gpt-5.5",
+          "claude-sonnet-4-6": "gpt-5.5",
+          "claude-sonnet-4-6-20251101": "gpt-5.5",
+          "claude-opus-4-8": "gpt-5.5",
+          "claude-opus-4-8-20251201": "gpt-5.5",
+          "claude-fable-5": "gpt-5.5",
+          "claude-fable-5-20260609": "gpt-5.5"
+        }
+      }
+    },
+    "openai-compatible-env": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.example.com",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "OPENAI_COMPAT_API_KEY",
+      "models": {
+        "default": "your-openai-compatible-model",
+        "haiku": "your-fast-model",
+        "sonnet": "your-balanced-model",
+        "opus": "your-best-model",
+        "fable": "your-long-context-model"
+      }
+    },
+    "openai-responses-env": {
+      "apiFormat": "openai_responses",
+      "baseUrl": "https://api.openai.com",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": {
+        "default": "gpt-5.5",
+        "haiku": "gpt-5.5",
+        "sonnet": "gpt-5.5",
+        "opus": "gpt-5.5",
+        "fable": "gpt-5.5"
+      }
+    },
+    "gemini-native-env": {
+      "apiFormat": "gemini_native",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "authHeader": "x-goog-api-key",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "models": {
+        "default": "gemini-2.5-pro",
+        "haiku": "gemini-2.5-flash",
+        "sonnet": "gemini-2.5-pro",
+        "opus": "gemini-2.5-pro",
+        "fable": "gemini-2.5-pro"
+      }
+    },
+    "anthropic-compatible-env": {
+      "apiFormat": "anthropic",
+      "baseUrl": "https://anthropic-compatible.example.com",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "ANTHROPIC_COMPAT_API_KEY",
+      "models": {
+        "default": "provider-native-default",
+        "haiku": "provider-native-fast",
+        "sonnet": "provider-native-balanced",
+        "opus": "provider-native-best",
+        "fable": "provider-native-long-context"
+      }
+    }
+  }
+}

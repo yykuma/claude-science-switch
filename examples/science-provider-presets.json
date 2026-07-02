@@ -1,0 +1,401 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 17777,
+    "clientToken": "PROXY_MANAGED",
+    "timeoutMs": 120000,
+    "maxBodyBytes": 20971520
+  },
+  "activeProvider": "cliproxy-gpt55",
+  "providers": {
+    "cliproxy-gpt55": {
+      "apiFormat": "anthropic",
+      "baseUrl": "http://127.0.0.1:8317",
+      "authHeader": "authorization-bearer",
+      "apiKeyFromCliproxyConfig": "/opt/homebrew/etc/cliproxyapi.conf",
+      "models": {
+        "default": "gpt-5.5",
+        "haiku": "gpt-5.5",
+        "sonnet": "gpt-5.5",
+        "opus": "gpt-5.5",
+        "fable": "gpt-5.5",
+        "displayNames": {
+          "claude-haiku-4-5": "gpt-5.5",
+          "claude-sonnet-4-6": "gpt-5.5",
+          "claude-opus-4-8": "gpt-5.5",
+          "claude-fable-5": "gpt-5.5"
+        },
+        "exact": {
+          "claude-haiku-4-5": "gpt-5.5",
+          "claude-haiku-4-5-20251001": "gpt-5.5",
+          "claude-sonnet-4-6": "gpt-5.5",
+          "claude-sonnet-4-6-20251101": "gpt-5.5",
+          "claude-opus-4-8": "gpt-5.5",
+          "claude-opus-4-8-20251201": "gpt-5.5",
+          "claude-fable-5": "gpt-5.5",
+          "claude-fable-5-20260609": "gpt-5.5"
+        }
+      }
+    },
+    "openai-responses": {
+      "apiFormat": "openai_responses",
+      "baseUrl": "https://api.openai.com",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": {
+        "default": "gpt-5.5",
+        "haiku": "gpt-5.5",
+        "sonnet": "gpt-5.5",
+        "opus": "gpt-5.5",
+        "fable": "gpt-5.5",
+        "displayNames": {
+          "claude-haiku-4-5": "OpenAI GPT-5.5",
+          "claude-sonnet-4-6": "OpenAI GPT-5.5",
+          "claude-opus-4-8": "OpenAI GPT-5.5",
+          "gpt-5.5": "OpenAI GPT-5.5"
+        }
+      }
+    },
+    "openrouter-auto": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "headers": {
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "Claude Science Switch"
+      },
+      "models": {
+        "default": "openrouter/auto",
+        "haiku": "openrouter/auto",
+        "sonnet": "openrouter/auto",
+        "opus": "openrouter/auto",
+        "fable": "openrouter/auto",
+        "allowed": [
+          "openrouter/auto",
+          "openai/gpt-5.5",
+          "anthropic/claude-opus-4.8"
+        ],
+        "displayNames": {
+          "claude-opus-4-8": "OpenRouter Auto",
+          "openrouter/auto": "OpenRouter Auto",
+          "openai/gpt-5.5": "OpenAI GPT-5.5 via OpenRouter",
+          "anthropic/claude-opus-4.8": "Claude Opus via OpenRouter"
+        }
+      }
+    },
+    "gemini-native": {
+      "apiFormat": "gemini_native",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "authHeader": "x-goog-api-key",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "models": {
+        "default": "gemini-2.5-pro",
+        "haiku": "gemini-2.5-flash",
+        "sonnet": "gemini-2.5-pro",
+        "opus": "gemini-2.5-pro",
+        "fable": "gemini-2.5-pro",
+        "allowed": [
+          "gemini-2.5-flash",
+          "gemini-2.5-pro"
+        ],
+        "displayNames": {
+          "claude-haiku-4-5": "Gemini 2.5 Flash",
+          "claude-sonnet-4-6": "Gemini 2.5 Pro",
+          "claude-opus-4-8": "Gemini 2.5 Pro",
+          "gemini-2.5-flash": "Gemini 2.5 Flash",
+          "gemini-2.5-pro": "Gemini 2.5 Pro"
+        }
+      }
+    },
+    "deepseek-anthropic": {
+      "apiFormat": "anthropic",
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "authHeader": "x-api-key",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "models": {
+        "default": "deepseek-chat",
+        "haiku": "deepseek-chat",
+        "sonnet": "deepseek-chat",
+        "opus": "deepseek-reasoner",
+        "fable": "deepseek-reasoner",
+        "allowed": [
+          "deepseek-chat",
+          "deepseek-reasoner"
+        ],
+        "displayNames": {
+          "claude-haiku-4-5": "DeepSeek Chat",
+          "claude-sonnet-4-6": "DeepSeek Chat",
+          "claude-opus-4-8": "DeepSeek Reasoner",
+          "deepseek-chat": "DeepSeek Chat",
+          "deepseek-reasoner": "DeepSeek Reasoner"
+        }
+      }
+    },
+    "deepseek-openai-chat": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.deepseek.com",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "models": {
+        "default": "deepseek-chat",
+        "haiku": "deepseek-chat",
+        "sonnet": "deepseek-chat",
+        "opus": "deepseek-reasoner",
+        "fable": "deepseek-reasoner",
+        "allowed": [
+          "deepseek-chat",
+          "deepseek-reasoner"
+        ]
+      }
+    },
+    "dashscope-qwen": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "DASHSCOPE_API_KEY",
+      "models": {
+        "default": "qwen-max",
+        "haiku": "qwen-turbo",
+        "sonnet": "qwen-plus",
+        "opus": "qwen-max",
+        "fable": "qwen-long",
+        "allowed": [
+          "qwen-turbo",
+          "qwen-plus",
+          "qwen-max",
+          "qwen-long"
+        ],
+        "displayNames": {
+          "claude-haiku-4-5": "Qwen Turbo",
+          "claude-sonnet-4-6": "Qwen Plus",
+          "claude-opus-4-8": "Qwen Max",
+          "qwen-turbo": "Qwen Turbo",
+          "qwen-plus": "Qwen Plus",
+          "qwen-max": "Qwen Max",
+          "qwen-long": "Qwen Long"
+        }
+      }
+    },
+    "moonshot-kimi": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "MOONSHOT_API_KEY",
+      "models": {
+        "default": "kimi-latest",
+        "haiku": "kimi-latest",
+        "sonnet": "kimi-latest",
+        "opus": "kimi-latest",
+        "fable": "kimi-latest",
+        "allowed": [
+          "kimi-latest"
+        ]
+      }
+    },
+    "zhipu-bigmodel": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "ZHIPU_API_KEY",
+      "models": {
+        "default": "glm-4.6",
+        "haiku": "glm-4-flash",
+        "sonnet": "glm-4.6",
+        "opus": "glm-4.6",
+        "fable": "glm-4.6",
+        "allowed": [
+          "glm-4-flash",
+          "glm-4.6"
+        ]
+      }
+    },
+    "siliconflow": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "SILICONFLOW_API_KEY",
+      "models": {
+        "default": "Qwen/Qwen3-Max",
+        "haiku": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+        "sonnet": "Qwen/Qwen3-Max",
+        "opus": "Qwen/Qwen3-Max",
+        "fable": "Qwen/Qwen3-Max",
+        "allowed": [
+          "Qwen/Qwen3-Max",
+          "Qwen/Qwen3-Next-80B-A3B-Instruct"
+        ]
+      }
+    },
+    "volcengine-ark": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "ARK_API_KEY",
+      "models": {
+        "default": "YOUR_ARK_ENDPOINT_ID",
+        "haiku": "YOUR_FAST_ARK_ENDPOINT_ID",
+        "sonnet": "YOUR_BALANCED_ARK_ENDPOINT_ID",
+        "opus": "YOUR_BEST_ARK_ENDPOINT_ID",
+        "fable": "YOUR_LONG_CONTEXT_ARK_ENDPOINT_ID"
+      }
+    },
+    "mistral": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "MISTRAL_API_KEY",
+      "models": {
+        "default": "mistral-large-latest",
+        "haiku": "mistral-small-latest",
+        "sonnet": "mistral-large-latest",
+        "opus": "mistral-large-latest",
+        "fable": "mistral-large-latest",
+        "allowed": [
+          "mistral-small-latest",
+          "mistral-large-latest"
+        ]
+      }
+    },
+    "groq": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "GROQ_API_KEY",
+      "models": {
+        "default": "openai/gpt-oss-120b",
+        "haiku": "openai/gpt-oss-20b",
+        "sonnet": "openai/gpt-oss-120b",
+        "opus": "openai/gpt-oss-120b",
+        "fable": "openai/gpt-oss-120b",
+        "allowed": [
+          "openai/gpt-oss-20b",
+          "openai/gpt-oss-120b"
+        ]
+      }
+    },
+    "together": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.together.xyz/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "TOGETHER_API_KEY",
+      "models": {
+        "default": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "haiku": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        "sonnet": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "opus": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "fable": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "allowed": [
+          "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+          "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        ]
+      }
+    },
+    "xai": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.x.ai/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "XAI_API_KEY",
+      "models": {
+        "default": "grok-4",
+        "haiku": "grok-4-fast",
+        "sonnet": "grok-4",
+        "opus": "grok-4",
+        "fable": "grok-4",
+        "allowed": [
+          "grok-4-fast",
+          "grok-4"
+        ]
+      }
+    },
+    "perplexity": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://api.perplexity.ai",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "PERPLEXITY_API_KEY",
+      "models": {
+        "default": "sonar-pro",
+        "haiku": "sonar",
+        "sonnet": "sonar-pro",
+        "opus": "sonar-pro",
+        "fable": "sonar-pro",
+        "allowed": [
+          "sonar",
+          "sonar-pro"
+        ]
+      }
+    },
+    "ollama-local": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "http://127.0.0.1:11434/v1",
+      "authHeader": "none",
+      "models": {
+        "default": "llama3.1",
+        "haiku": "llama3.1",
+        "sonnet": "llama3.1",
+        "opus": "llama3.1",
+        "fable": "llama3.1",
+        "allowed": [
+          "llama3.1",
+          "qwen2.5-coder",
+          "gpt-oss"
+        ],
+        "displayNames": {
+          "claude-opus-4-8": "Ollama Local",
+          "llama3.1": "Ollama llama3.1"
+        }
+      }
+    },
+    "lmstudio-local": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "authHeader": "none",
+      "models": {
+        "default": "local-model",
+        "haiku": "local-model",
+        "sonnet": "local-model",
+        "opus": "local-model",
+        "fable": "local-model"
+      }
+    },
+    "generic-openai-compatible": {
+      "apiFormat": "openai_chat",
+      "baseUrl": "https://YOUR_OPENAI_COMPATIBLE_HOST/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "OPENAI_COMPAT_API_KEY",
+      "models": {
+        "default": "YOUR_DEFAULT_MODEL",
+        "haiku": "YOUR_FAST_MODEL",
+        "sonnet": "YOUR_BALANCED_MODEL",
+        "opus": "YOUR_BEST_MODEL",
+        "fable": "YOUR_LONG_CONTEXT_MODEL"
+      }
+    },
+    "generic-anthropic-compatible": {
+      "apiFormat": "anthropic",
+      "baseUrl": "https://YOUR_ANTHROPIC_COMPATIBLE_HOST",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "ANTHROPIC_COMPAT_API_KEY",
+      "models": {
+        "default": "YOUR_DEFAULT_MODEL",
+        "haiku": "YOUR_FAST_MODEL",
+        "sonnet": "YOUR_BALANCED_MODEL",
+        "opus": "YOUR_BEST_MODEL",
+        "fable": "YOUR_LONG_CONTEXT_MODEL"
+      }
+    },
+    "generic-openai-responses": {
+      "apiFormat": "openai_responses",
+      "baseUrl": "https://YOUR_RESPONSES_COMPATIBLE_HOST/v1",
+      "authHeader": "authorization-bearer",
+      "apiKeyEnv": "RESPONSES_COMPAT_API_KEY",
+      "models": {
+        "default": "YOUR_RESPONSES_MODEL",
+        "haiku": "YOUR_FAST_RESPONSES_MODEL",
+        "sonnet": "YOUR_BALANCED_RESPONSES_MODEL",
+        "opus": "YOUR_BEST_RESPONSES_MODEL",
+        "fable": "YOUR_LONG_CONTEXT_RESPONSES_MODEL"
+      }
+    }
+  }
+}

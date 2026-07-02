@@ -1,0 +1,30 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 17777,
+    "clientToken": "PROXY_MANAGED",
+    "timeoutMs": 120000,
+    "maxBodyBytes": 20971520
+  },
+  "activeProvider": "cc-switch-openai-compatible",
+  "providers": {
+    "cc-switch-openai-compatible": {
+      "settingsConfig": {
+        "env": {
+          "ANTHROPIC_BASE_URL": "https://api.example.com/v1/chat/completions",
+          "ANTHROPIC_AUTH_TOKEN": "replace-with-provider-api-key",
+          "ANTHROPIC_MODEL": "provider-default-model",
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL": "provider-fast-model",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL": "provider-balanced-model",
+          "ANTHROPIC_DEFAULT_OPUS_MODEL": "provider-best-model",
+          "ANTHROPIC_DEFAULT_FABLE_MODEL": "provider-long-context-model"
+        }
+      },
+      "meta": {
+        "apiFormat": "openai_chat",
+        "isFullUrl": true
+      },
+      "apiKeyField": "ANTHROPIC_AUTH_TOKEN"
+    }
+  }
+}

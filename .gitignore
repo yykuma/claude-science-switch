@@ -1,0 +1,42 @@
+.DS_Store
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+
+# Node and package manager outputs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated CLI/native artifacts
+bin/native/
+release/
+*.tgz
+
+# Local app build outputs
+cc-switch-src/node_modules/
+cc-switch-src/dist/
+cc-switch-src/release/
+cc-switch-src/src-tauri/target/
+cc-switch-src/src-tauri/gen/
+cc-switch-src/src-tauri/target-*/
+*.dmg
+*.app
+
+# Local research/reference clones and scratch work
+research/
+.cc-switch-src.git.backup/
+.worktrees/
+.spec-workflow/
+
+# Local tool state
+.claude/
+.codex/
+.gemini/
+.cc-switch/
+.idea/
+.vscode/
