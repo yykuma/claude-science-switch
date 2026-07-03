@@ -1,6 +1,6 @@
 {
   "name": "claude-science-switch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Local loopback proxy/switch for testing Claude Science with alternate model APIs.",

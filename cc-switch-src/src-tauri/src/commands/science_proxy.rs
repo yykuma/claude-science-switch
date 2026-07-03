@@ -3,14 +3,15 @@
 use aes_gcm::aead::{AeadInPlace, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use once_cell::sync::Lazy;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -31,6 +32,8 @@ const SCIENCE_CONFIG_TOML: &str = r#"default_model = "claude-opus-4-8"
 kernel_default_model = "claude-haiku-4-5"
 lineage_extraction_model = "claude-sonnet-4-6"
 "#;
+const SCIENCE_VIRTUAL_EMAIL: &str = "local-dev@localhost.invalid";
+const SCIENCE_VIRTUAL_TOKEN_EXPIRY: &str = "2099-01-01T00:00:00.000Z";
 const SCIENCE_PRELOAD_JS: &str = r##"const token = process.env.CS_PROXY_TOKEN || "";
 const proxyBaseUrl = process.env.CS_PROXY_BASE_URL || process.env.ANTHROPIC_BASE_URL || "";
 const runId = process.env.CS_PRELOAD_RUN_ID || "missing-run-id";
@@ -617,12 +620,7 @@ pub async fn open_science_app_profile_folder(app: tauri::AppHandle) -> Result<bo
     let paths =
         science_app_profile_paths(crate::config::get_app_config_dir().join("science-app-profile"));
     guard_science_app_profile_path(&paths.root)?;
-    fs::create_dir_all(&paths.root).map_err(|err| {
-        format!(
-            "Could not create Claude Science managed profile folder {}: {err}",
-            paths.root.display()
-        )
-    })?;
+    create_science_managed_dir(&paths.root, &paths.root)?;
     guard_science_app_profile_path(&paths.root)?;
     app.opener()
         .open_path(paths.root.to_string_lossy().to_string(), None::<String>)
@@ -1359,12 +1357,7 @@ fn prepare_science_app_profile_at(
         &paths.auth_dir,
         &paths.data_dir,
     ] {
-        fs::create_dir_all(dir).map_err(|err| {
-            format!(
-                "Could not create Claude Science managed directory {}: {err}",
-                dir.display()
-            )
-        })?;
+        create_science_managed_dir(&paths.root, dir)?;
     }
     guard_science_app_profile_path(&paths.root)?;
     write_science_virtual_oauth(&paths, client_token)?;
@@ -1417,27 +1410,36 @@ fn write_science_virtual_oauth(
     client_token: &str,
 ) -> Result<(), String> {
     guard_science_app_profile_path(&paths.auth_dir)?;
-    fs::create_dir_all(&paths.auth_dir).map_err(|err| {
-        format!(
-            "Could not create Claude Science auth directory {}: {err}",
-            paths.auth_dir.display()
-        )
-    })?;
+    create_science_managed_dir(&paths.root, &paths.auth_dir)?;
     set_private_dir_permissions(&paths.auth_dir)?;
 
-    let keys = ScienceVirtualOAuthKeys::new();
-    write_private_file(&paths.auth_dir.join("encryption.key"), &keys.to_key_file())?;
+    if science_login_is_intact(paths, client_token) {
+        return Ok(());
+    }
 
-    let account_uuid = Uuid::new_v4().to_string();
-    let org_uuid = Uuid::new_v4().to_string();
+    let (prior_token_org, prior_account) = read_science_token_ids(paths);
+    let prior_org = match read_active_science_org(paths).or(prior_token_org) {
+        Some(org) => Some(org),
+        None => single_science_org_dir(paths)?,
+    };
+
+    let keys = ScienceVirtualOAuthKeys::load_or_new(paths);
+    write_private_file(
+        &paths.root,
+        &paths.auth_dir.join("encryption.key"),
+        &keys.to_key_file(),
+    )?;
+
+    let account_uuid = prior_account.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let org_uuid = prior_org.unwrap_or_else(|| Uuid::new_v4().to_string());
     let token_blob = json!({
         "access_token": client_token,
         "refresh_token": "",
         "api_key": null,
-        "token_expires_at": "2099-01-01T00:00:00.000Z",
+        "token_expires_at": SCIENCE_VIRTUAL_TOKEN_EXPIRY,
         "provider": "claude_ai",
         "scopes": "user:inference user:file_upload user:profile user:mcp_servers user:plugins",
-        "email": "local-dev@localhost.invalid",
+        "email": SCIENCE_VIRTUAL_EMAIL,
         "account_uuid": account_uuid,
         "subscription_type": "max",
         "rate_limit_tier": null,
@@ -1454,13 +1456,7 @@ fn write_science_virtual_oauth(
     )?;
 
     let token_dir = paths.auth_dir.join(".oauth-tokens");
-    guard_not_symlink(&token_dir)?;
-    fs::create_dir_all(&token_dir).map_err(|err| {
-        format!(
-            "Could not create Claude Science OAuth token directory {}: {err}",
-            token_dir.display()
-        )
-    })?;
+    create_science_managed_dir(&paths.root, &token_dir)?;
     set_private_dir_permissions(&token_dir)?;
     for entry in fs::read_dir(&token_dir).map_err(|err| {
         format!(
@@ -1471,7 +1467,7 @@ fn write_science_virtual_oauth(
         let entry = entry.map_err(|err| format!("Could not inspect OAuth token file: {err}"))?;
         let path = entry.path();
         if path.extension().and_then(|ext| ext.to_str()) == Some("enc") {
-            guard_not_symlink(&path)?;
+            guard_science_profile_member(&paths.root, &path)?;
             fs::remove_file(&path).map_err(|err| {
                 format!(
                     "Could not remove stale Claude Science OAuth token {}: {err}",
@@ -1482,12 +1478,163 @@ fn write_science_virtual_oauth(
     }
 
     let token_name = account_uuid.replace('-', "");
-    write_private_file(&token_dir.join(format!("{token_name}.enc")), &encrypted)?;
     write_private_file(
+        &paths.root,
+        &token_dir.join(format!("{token_name}.enc")),
+        &encrypted,
+    )?;
+    write_private_file(
+        &paths.root,
         &paths.auth_dir.join("active-org.json"),
         &format!("{}\n", json!({ "org_uuid": org_uuid })),
     )?;
     Ok(())
+}
+
+fn science_login_is_intact(paths: &ScienceAppProfilePaths, client_token: &str) -> bool {
+    let Some((token, _enc_file)) = read_science_token_blob(paths) else {
+        return false;
+    };
+    let Some(account_uuid) = json_string_field(&token, "account_uuid") else {
+        return false;
+    };
+    let Some(org_uuid) = json_string_field(&token, "org_uuid") else {
+        return false;
+    };
+    let Some(expires_at) = json_string_field(&token, "token_expires_at") else {
+        return false;
+    };
+    if !looks_like_uuid(&account_uuid)
+        || !looks_like_uuid(&org_uuid)
+        || json_string_field(&token, "provider").as_deref() != Some("claude_ai")
+        || json_string_field(&token, "email").as_deref() != Some(SCIENCE_VIRTUAL_EMAIL)
+        || json_string_field(&token, "access_token").as_deref() != Some(client_token)
+        || !science_token_not_expired(&expires_at)
+    {
+        return false;
+    }
+    if read_active_science_org(paths).as_deref() != Some(org_uuid.as_str()) {
+        return false;
+    }
+    true
+}
+
+fn read_science_token_ids(paths: &ScienceAppProfilePaths) -> (Option<String>, Option<String>) {
+    let Some((token, _)) = read_science_token_blob(paths) else {
+        return (None, None);
+    };
+    let org = json_string_field(&token, "org_uuid").filter(|value| looks_like_uuid(value));
+    let account = json_string_field(&token, "account_uuid").filter(|value| looks_like_uuid(value));
+    (org, account)
+}
+
+fn read_science_token_blob(paths: &ScienceAppProfilePaths) -> Option<(Value, PathBuf)> {
+    guard_science_profile_member(&paths.root, &paths.auth_dir).ok()?;
+    let oauth_key = read_science_oauth_key(paths)?;
+    let enc_file = single_oauth_token_file(paths)?;
+    guard_science_profile_member(&paths.root, &enc_file).ok()?;
+    let token_body = fs::read_to_string(&enc_file).ok()?;
+    let token = decrypt_science_token_v2(&token_body, &oauth_key, "oauth").ok()?;
+    Some((token, enc_file))
+}
+
+fn read_science_oauth_key(paths: &ScienceAppProfilePaths) -> Option<String> {
+    let key_path = paths.auth_dir.join("encryption.key");
+    guard_science_profile_member(&paths.root, &key_path).ok()?;
+    let key_file = fs::read_to_string(key_path).ok()?;
+    science_key_file_value(&key_file, "OAUTH_ENCRYPTION_KEY")
+        .filter(|value| valid_science_key_material(value))
+}
+
+fn single_oauth_token_file(paths: &ScienceAppProfilePaths) -> Option<PathBuf> {
+    let token_dir = paths.auth_dir.join(".oauth-tokens");
+    guard_science_profile_member(&paths.root, &token_dir).ok()?;
+    let mut enc_files = Vec::new();
+    for entry in fs::read_dir(token_dir).ok()?.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) == Some("enc") {
+            guard_science_profile_member(&paths.root, &path).ok()?;
+            enc_files.push(path);
+        }
+    }
+    if enc_files.len() == 1 {
+        enc_files.pop()
+    } else {
+        None
+    }
+}
+
+fn read_active_science_org(paths: &ScienceAppProfilePaths) -> Option<String> {
+    let active_path = paths.auth_dir.join("active-org.json");
+    guard_science_profile_member(&paths.root, &active_path).ok()?;
+    let value: Value = serde_json::from_str(&fs::read_to_string(active_path).ok()?).ok()?;
+    json_string_field(&value, "org_uuid").filter(|value| looks_like_uuid(value))
+}
+
+fn single_science_org_dir(paths: &ScienceAppProfilePaths) -> Result<Option<String>, String> {
+    let orgs_dir = paths.auth_dir.join("orgs");
+    guard_science_profile_member(&paths.root, &orgs_dir)?;
+    if !orgs_dir.exists() {
+        return Ok(None);
+    }
+    let mut orgs = Vec::new();
+    for entry in fs::read_dir(&orgs_dir).map_err(|err| {
+        format!(
+            "Could not list Claude Science orgs {}: {err}",
+            orgs_dir.display()
+        )
+    })? {
+        let entry = entry.map_err(|err| format!("Could not inspect Claude Science org: {err}"))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let path = entry.path();
+        guard_science_profile_member(&paths.root, &path)?;
+        if path.is_dir() && looks_like_uuid(&name) {
+            orgs.push(name);
+        }
+    }
+    match orgs.len() {
+        0 => Ok(None),
+        1 => Ok(orgs.pop()),
+        _ => Err(format!(
+            "Detected {} Claude Science managed org directories but no active org token; refusing to mint a new org and orphan existing conversations. Restore active-org.json under {} and retry.",
+            orgs.len(),
+            paths.auth_dir.display()
+        )),
+    }
+}
+
+fn json_string_field(value: &Value, key: &str) -> Option<String> {
+    value.get(key)?.as_str().map(str::to_string)
+}
+
+fn looks_like_uuid(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 36
+        && bytes.iter().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => *byte == b'-',
+            _ => byte.is_ascii_hexdigit(),
+        })
+}
+
+fn science_token_not_expired(value: &str) -> bool {
+    DateTime::parse_from_rfc3339(value)
+        .map(|time| time.with_timezone(&Utc) > Utc::now())
+        .unwrap_or(false)
+}
+
+fn science_key_file_value(body: &str, name: &str) -> Option<String> {
+    body.lines()
+        .find_map(|line| line.strip_prefix(&format!("{name}=")))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn valid_science_key_material(value: &str) -> bool {
+    BASE64_STANDARD
+        .decode(value.trim())
+        .map(|bytes| bytes.len() >= 16)
+        .unwrap_or(false)
 }
 
 #[derive(Debug)]
@@ -1506,6 +1653,37 @@ impl ScienceVirtualOAuthKeys {
             jwt: random_base64(32),
             user_secret: random_base64(32),
         }
+    }
+
+    fn load_or_new(paths: &ScienceAppProfilePaths) -> Self {
+        let mut keys = Self::new();
+        let key_path = paths.auth_dir.join("encryption.key");
+        if guard_science_profile_member(&paths.root, &key_path).is_ok() {
+            if let Ok(body) = fs::read_to_string(&key_path) {
+                if let Some(value) =
+                    science_key_file_value(&body, "ANTHROPIC_API_KEY_ENCRYPTION_KEY")
+                        .filter(|value| valid_science_key_material(value))
+                {
+                    keys.anthropic_api_key = value;
+                }
+                if let Some(value) = science_key_file_value(&body, "OAUTH_ENCRYPTION_KEY")
+                    .filter(|value| valid_science_key_material(value))
+                {
+                    keys.oauth = value;
+                }
+                if let Some(value) = science_key_file_value(&body, "JWT_SIGNING_SECRET")
+                    .filter(|value| value.len() >= 16)
+                {
+                    keys.jwt = value;
+                }
+                if let Some(value) = science_key_file_value(&body, "USER_SECRET_ENCRYPTION_KEY")
+                    .filter(|value| valid_science_key_material(value))
+                {
+                    keys.user_secret = value;
+                }
+            }
+        }
+        keys
     }
 
     fn to_key_file(&self) -> String {
@@ -1548,6 +1726,41 @@ fn encrypt_science_token_v2(
     body.extend_from_slice(&ciphertext);
     body.extend_from_slice(&tag);
     Ok(format!("v2:{}", BASE64_STANDARD.encode(body)))
+}
+
+fn decrypt_science_token_v2(body: &str, key_base64: &str, label: &str) -> Result<Value, String> {
+    let raw = BASE64_STANDARD
+        .decode(
+            body.strip_prefix("v2:")
+                .ok_or_else(|| "Claude Science OAuth token is missing v2 prefix".to_string())?,
+        )
+        .map_err(|err| format!("Invalid Claude Science OAuth token base64: {err}"))?;
+    if raw.len() < 29 {
+        return Err("Claude Science OAuth token is too short".to_string());
+    }
+    let iv = &raw[..12];
+    let tag = &raw[raw.len() - 16..];
+    let mut ciphertext = raw[12..raw.len() - 16].to_vec();
+    let root_key = BASE64_STANDARD
+        .decode(key_base64)
+        .map_err(|err| format!("Invalid Claude Science OAuth encryption key: {err}"))?;
+    if root_key.len() < 16 {
+        return Err("Invalid Claude Science OAuth encryption key length".to_string());
+    }
+    let info = format!("operon:aes-256-gcm:{label}");
+    let key = hkdf_sha256(&root_key, info.as_bytes(), 32)?;
+    let cipher = Aes256Gcm::new_from_slice(&key)
+        .map_err(|err| format!("Could not initialize Claude Science token cipher: {err}"))?;
+    cipher
+        .decrypt_in_place_detached(
+            Nonce::from_slice(iv),
+            format!("v2:{label}").as_bytes(),
+            &mut ciphertext,
+            aes_gcm::Tag::from_slice(tag),
+        )
+        .map_err(|err| format!("Could not decrypt Claude Science OAuth token: {err}"))?;
+    serde_json::from_slice(&ciphertext)
+        .map_err(|err| format!("Could not parse Claude Science OAuth token: {err}"))
 }
 
 fn hkdf_sha256(ikm: &[u8], info: &[u8], len: usize) -> Result<Vec<u8>, String> {
@@ -1599,14 +1812,99 @@ fn guard_not_symlink(path: &Path) -> Result<(), String> {
     }
 }
 
-fn write_private_file(path: &Path, body: &str) -> Result<(), String> {
+fn create_science_managed_dir(root: &Path, dir: &Path) -> Result<(), String> {
+    guard_science_profile_member(root, dir)?;
+    fs::create_dir_all(dir).map_err(|err| {
+        format!(
+            "Could not create Claude Science managed directory {}: {err}",
+            dir.display()
+        )
+    })?;
+    guard_science_profile_member(root, dir)?;
+    Ok(())
+}
+
+fn guard_science_profile_member(root: &Path, path: &Path) -> Result<(), String> {
+    guard_science_app_profile_path(root)?;
+    let root = absolute_normalized_science_path(root)?;
+    let path = absolute_normalized_science_path(path)?;
+    if !path.starts_with(&root) {
+        return Err(format!(
+            "Refusing to use path outside Claude Science managed profile: {}",
+            path.display()
+        ));
+    }
+
+    guard_not_symlink(&root)?;
+    let relative = path.strip_prefix(&root).map_err(|_| {
+        format!(
+            "Refusing to use path outside Claude Science managed profile: {}",
+            path.display()
+        )
+    })?;
+    let mut current = root.clone();
+    for component in relative.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(part) => {
+                current.push(part);
+                guard_not_symlink(&current)?;
+            }
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "Refusing unsafe Claude Science managed profile path: {}",
+                    path.display()
+                ));
+            }
+        }
+    }
+
+    if let (Ok(root_real), Ok(path_real)) = (fs::canonicalize(&root), fs::canonicalize(&path)) {
+        if !path_real.starts_with(&root_real) {
+            return Err(format!(
+                "Refusing to follow path outside Claude Science managed profile: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn absolute_normalized_science_path(path: &Path) -> Result<PathBuf, String> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|err| format!("Could not resolve current directory: {err}"))?
+            .join(path)
+    };
+    Ok(normalize_science_path(&absolute))
+}
+
+fn normalize_science_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    normalized.push(component.as_os_str());
+                }
+            }
+            Component::Normal(part) => normalized.push(part),
+            Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized
+}
+
+fn write_private_file(root: &Path, path: &Path, body: &str) -> Result<(), String> {
+    guard_science_profile_member(root, path)?;
     if let Some(parent) = path.parent() {
-        guard_not_symlink(parent)?;
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("Could not create {}: {err}", parent.display()))?;
+        create_science_managed_dir(root, parent)?;
         set_private_dir_permissions(parent)?;
     }
-    guard_not_symlink(path)?;
+    guard_science_profile_member(root, path)?;
     let tmp = path.with_file_name(format!(
         ".{}.tmp-{}",
         path.file_name()
@@ -1614,6 +1912,7 @@ fn write_private_file(path: &Path, body: &str) -> Result<(), String> {
             .unwrap_or("science-auth"),
         Uuid::new_v4()
     ));
+    guard_science_profile_member(root, &tmp)?;
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -1635,6 +1934,8 @@ fn write_private_file(path: &Path, body: &str) -> Result<(), String> {
         let _ = fs::remove_file(&tmp);
         return Err(err);
     }
+    guard_science_profile_member(root, path)?;
+    guard_science_profile_member(root, &tmp)?;
     fs::rename(&tmp, path).map_err(|err| format!("Could not replace {}: {err}", path.display()))?;
     set_private_file_permissions(path)?;
     Ok(())
@@ -1667,7 +1968,7 @@ fn ensure_science_sandbox_keychain(paths: &ScienceAppProfilePaths) -> Result<(),
         .join("Library")
         .join("Keychains")
         .join("login.keychain-db");
-    guard_not_symlink(&keychain)?;
+    guard_science_profile_member(&paths.root, &keychain)?;
     if !keychain.is_file() {
         run_science_security_command(paths, |command| {
             command
@@ -1971,6 +2272,20 @@ fn wait_for_science_loopback_url(
     ))
 }
 
+fn first_http_url(stdout: &str) -> Option<String> {
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            return trimmed
+                .split_whitespace()
+                .next()
+                .filter(|value| !value.is_empty())
+                .map(str::to_string);
+        }
+    }
+    None
+}
+
 fn read_science_loopback_url(
     cli_path: &Path,
     paths: &ScienceAppProfilePaths,
@@ -2002,12 +2317,8 @@ fn read_science_loopback_url(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let web_url = stdout
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with("http://") || line.starts_with("https://"))
-        .ok_or_else(|| "Claude Science did not return a smoke login URL".to_string())?
-        .to_string();
+    let web_url = first_http_url(&stdout)
+        .ok_or_else(|| "Claude Science did not return a smoke login URL".to_string())?;
     validate_loopback_web_url(&web_url)?;
     Ok(web_url)
 }
@@ -2066,12 +2377,8 @@ fn open_fresh_science_app_url(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let web_url = stdout
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with("http://") || line.starts_with("https://"))
-        .ok_or_else(|| "Claude Science did not return a login URL".to_string())?
-        .to_string();
+    let web_url = first_http_url(&stdout)
+        .ok_or_else(|| "Claude Science did not return a login URL".to_string())?;
     validate_loopback_web_url(&web_url)?;
 
     if open_browser {
@@ -2431,7 +2738,11 @@ mod tests {
             .to_string()
     }
 
-    fn decrypt_science_token_v2(body: &str, key_base64: &str, label: &str) -> serde_json::Value {
+    fn decrypt_test_science_token_v2(
+        body: &str,
+        key_base64: &str,
+        label: &str,
+    ) -> serde_json::Value {
         let raw = BASE64_STANDARD
             .decode(body.strip_prefix("v2:").expect("v2 prefix"))
             .expect("base64 token");
@@ -2453,6 +2764,32 @@ mod tests {
         serde_json::from_slice(&ciphertext).expect("token json")
     }
 
+    fn oauth_enc_files(paths: &ScienceAppProfilePaths) -> Vec<PathBuf> {
+        fs::read_dir(paths.auth_dir.join(".oauth-tokens"))
+            .expect("token dir")
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("enc"))
+            .collect::<Vec<_>>()
+    }
+
+    fn oauth_token(paths: &ScienceAppProfilePaths) -> serde_json::Value {
+        let key_file = fs::read_to_string(paths.auth_dir.join("encryption.key")).expect("key file");
+        let oauth_key = key_value(&key_file, "OAUTH_ENCRYPTION_KEY");
+        let enc_files = oauth_enc_files(paths);
+        assert_eq!(enc_files.len(), 1);
+        let token_body = fs::read_to_string(&enc_files[0]).expect("token body");
+        decrypt_test_science_token_v2(&token_body, &oauth_key, "oauth")
+    }
+
+    fn active_org(paths: &ScienceAppProfilePaths) -> String {
+        let active_org: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(paths.auth_dir.join("active-org.json")).expect("active org"),
+        )
+        .expect("active org json");
+        active_org["org_uuid"].as_str().unwrap().to_string()
+    }
+
     #[test]
     fn virtual_oauth_token_roundtrips_and_matches_active_org() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -2462,26 +2799,17 @@ mod tests {
 
         let key_file = fs::read_to_string(paths.auth_dir.join("encryption.key")).expect("key file");
         let oauth_key = key_value(&key_file, "OAUTH_ENCRYPTION_KEY");
-        let token_dir = paths.auth_dir.join(".oauth-tokens");
-        let enc_files = fs::read_dir(&token_dir)
-            .expect("token dir")
-            .filter_map(Result::ok)
-            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("enc"))
-            .collect::<Vec<_>>();
+        let enc_files = oauth_enc_files(&paths);
         assert_eq!(enc_files.len(), 1);
 
-        let token_body = fs::read_to_string(enc_files[0].path()).expect("token body");
-        let token = decrypt_science_token_v2(&token_body, &oauth_key, "oauth");
+        let token_body = fs::read_to_string(&enc_files[0]).expect("token body");
+        let token = decrypt_test_science_token_v2(&token_body, &oauth_key, "oauth");
         assert_eq!(token["access_token"], "science-client-test-token");
         assert_eq!(token["provider"], "claude_ai");
-        assert_eq!(token["email"], "local-dev@localhost.invalid");
+        assert_eq!(token["email"], SCIENCE_VIRTUAL_EMAIL);
         assert_eq!(token["subscription_type"], "max");
 
-        let active_org: serde_json::Value = serde_json::from_str(
-            &fs::read_to_string(paths.auth_dir.join("active-org.json")).expect("active org"),
-        )
-        .expect("active org json");
-        assert_eq!(active_org["org_uuid"], token["org_uuid"]);
+        assert_eq!(active_org(&paths), token["org_uuid"].as_str().unwrap());
 
         #[cfg(unix)]
         {
@@ -2495,5 +2823,127 @@ mod tests {
                 0o600
             );
         }
+    }
+
+    #[test]
+    fn virtual_oauth_reuses_intact_login_without_rewriting() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = science_app_profile_paths(temp.path().join("science-app-profile"));
+        fs::create_dir_all(&paths.home).expect("home");
+        write_science_virtual_oauth(&paths, "science-client-stable").expect("write oauth");
+
+        let key_before =
+            fs::read(paths.auth_dir.join("encryption.key")).expect("key before should exist");
+        let enc_path = oauth_enc_files(&paths).pop().expect("enc before");
+        let enc_before = fs::read(&enc_path).expect("enc before should exist");
+        let org_before = active_org(&paths);
+
+        write_science_virtual_oauth(&paths, "science-client-stable").expect("reuse oauth");
+
+        assert_eq!(
+            fs::read(paths.auth_dir.join("encryption.key")).unwrap(),
+            key_before
+        );
+        assert_eq!(fs::read(&enc_path).unwrap(), enc_before);
+        assert_eq!(active_org(&paths), org_before);
+        assert!(science_login_is_intact(&paths, "science-client-stable"));
+    }
+
+    #[test]
+    fn virtual_oauth_repairs_changed_client_token_but_keeps_org() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = science_app_profile_paths(temp.path().join("science-app-profile"));
+        fs::create_dir_all(&paths.home).expect("home");
+        write_science_virtual_oauth(&paths, "science-client-old").expect("write oauth");
+        let org_before = active_org(&paths);
+
+        write_science_virtual_oauth(&paths, "science-client-new").expect("repair oauth");
+
+        let token = oauth_token(&paths);
+        assert_eq!(token["access_token"], "science-client-new");
+        assert_eq!(token["org_uuid"], org_before);
+        assert_eq!(active_org(&paths), org_before);
+        assert!(!science_login_is_intact(&paths, "science-client-old"));
+        assert!(science_login_is_intact(&paths, "science-client-new"));
+    }
+
+    #[test]
+    fn virtual_oauth_repairs_missing_token_file_but_keeps_active_org() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = science_app_profile_paths(temp.path().join("science-app-profile"));
+        fs::create_dir_all(&paths.home).expect("home");
+        write_science_virtual_oauth(&paths, "science-client-token").expect("write oauth");
+        let org_before = active_org(&paths);
+        for enc in oauth_enc_files(&paths) {
+            fs::remove_file(enc).expect("remove enc");
+        }
+
+        write_science_virtual_oauth(&paths, "science-client-token").expect("repair oauth");
+
+        let token = oauth_token(&paths);
+        assert_eq!(token["org_uuid"], org_before);
+        assert_eq!(active_org(&paths), org_before);
+        assert!(science_login_is_intact(&paths, "science-client-token"));
+    }
+
+    #[test]
+    fn virtual_oauth_refuses_ambiguous_orphaned_orgs() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = science_app_profile_paths(temp.path().join("science-app-profile"));
+        fs::create_dir_all(&paths.home).expect("home");
+        write_science_virtual_oauth(&paths, "science-client-token").expect("write oauth");
+        fs::remove_file(paths.auth_dir.join("active-org.json")).expect("remove active org");
+        for enc in oauth_enc_files(&paths) {
+            fs::remove_file(enc).expect("remove enc");
+        }
+        fs::create_dir_all(paths.auth_dir.join("orgs").join(Uuid::new_v4().to_string()))
+            .expect("org a");
+        fs::create_dir_all(paths.auth_dir.join("orgs").join(Uuid::new_v4().to_string()))
+            .expect("org b");
+
+        let error = write_science_virtual_oauth(&paths, "science-client-token")
+            .expect_err("ambiguous orgs should be rejected");
+        assert!(error.contains("managed org directories"));
+        assert!(
+            !paths.auth_dir.join("active-org.json").exists(),
+            "ambiguous repair must not silently choose a new org"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn virtual_oauth_refuses_symlinked_profile_ancestor() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = science_app_profile_paths(temp.path().join("science-app-profile"));
+        let escape = temp.path().join("escape");
+        fs::create_dir_all(&paths.root).expect("root");
+        fs::create_dir_all(&escape).expect("escape");
+        std::os::unix::fs::symlink(&escape, &paths.home).expect("home symlink");
+
+        let error = write_science_virtual_oauth(&paths, "science-client-token")
+            .expect_err("symlinked profile ancestor should be rejected");
+
+        assert!(error.contains("symlink"));
+        assert!(
+            !escape.join(".claude-science").exists(),
+            "OAuth repair must not write through symlinked profile ancestors"
+        );
+    }
+
+    #[test]
+    fn first_http_url_takes_first_valid_url_token() {
+        let multi = "noise\n  http://127.0.0.1:8990/?nonce=abc\nsingle-use URL expires soon";
+        assert_eq!(
+            first_http_url(multi).as_deref(),
+            Some("http://127.0.0.1:8990/?nonce=abc")
+        );
+
+        let inline = "https://localhost:9443/path?x=1 trailing explanation";
+        assert_eq!(
+            first_http_url(inline).as_deref(),
+            Some("https://localhost:9443/path?x=1")
+        );
+
+        assert_eq!(first_http_url("no url here"), None);
     }
 }

@@ -26,6 +26,10 @@
   "supported_in_api": true,
   "priority": 0,
   "base_instructions": "You are a coding agent. Work in the user's workspace, use tools carefully, and help complete the user's task.",
+  "model_messages": {
+    "instructions_template": "You are a coding agent. Work in the user's workspace, use tools carefully, and help complete the user's task.",
+    "instructions_variables": {}
+  },
   "supports_reasoning_summaries": true,
   "default_reasoning_summary": "none",
   "support_verbosity": true,

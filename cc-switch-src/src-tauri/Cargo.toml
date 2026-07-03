@@ -1,6 +1,6 @@
 [package]
 name = "cc-switch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local provider switcher for Claude Science"
 authors = ["Claude Science Switch contributors"]
 license = "MIT"

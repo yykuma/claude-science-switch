@@ -1,6 +1,6 @@
 {
   "name": "claude-science-switch-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local provider switcher for Claude Science",
   "type": "module",
   "scripts": {
