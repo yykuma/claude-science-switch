@@ -1,6 +1,6 @@
 {
   "name": "claude-science-switch-desktop",
-  "version": "3.16.5",
+  "version": "0.1.0",
   "description": "Local provider switcher for Claude Science",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "test:unit:watch": "vitest watch"
   },
   "keywords": [],
-  "author": "Jason Young",
+  "author": "Claude Science Switch contributors",
   "license": "MIT",
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.0",

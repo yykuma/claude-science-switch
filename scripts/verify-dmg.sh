@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DMG_PATH="${1:-"$ROOT_DIR/cc-switch-src/src-tauri/target/release/bundle/dmg/Claude Science Switch_3.16.5_aarch64.dmg"}"
+DMG_PATH="${1:-"$ROOT_DIR/cc-switch-src/src-tauri/target/release/bundle/dmg/Claude Science Switch_0.1.0_aarch64.dmg"}"
 MOUNT_DIR="$(mktemp -d /tmp/claude-science-switch-dmg.XXXXXX)"
 
 cleanup() {
